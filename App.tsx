@@ -1,118 +1,207 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, {useState} from 'react';
 import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
   View,
+  Text,
+  TextInput,
+  Alert,
+  StyleSheet,
+  ScrollView,
+  SafeAreaView,
 } from 'react-native';
+import {Button, Snackbar} from 'react-native-paper';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  Layout,
+} from 'react-native-reanimated';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
+const SudokuSolver = () => {
+  const [grid, setGrid] = useState(
+    Array(9)
+      .fill('')
+      .map(() => Array(9).fill('')),
   );
-}
+  const [error, setError] = useState(null);
+  const [visible, setVisible] = useState(false);
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  const validateGrid = () => {
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 9; j++) {
+        const value = grid[i][j];
+        if (value !== '' && !isValidValue(i, j, value)) {
+          setError(`Invalid value at row ${i + 1}, column ${j + 1}`);
+          setVisible(true);
+          return false;
+        }
+      }
+    }
+    setError(null);
+    Alert.alert('Validation', 'The grid is valid!');
+    return true;
+  };
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  const isValidValue = (row, col, value) => {
+    for (let i = 0; i < 9; i++) {
+      if (grid[row][i] === value || grid[i][col] === value) {
+        return false;
+      }
+    }
+
+    const startRow = Math.floor(row / 3) * 3;
+    const startCol = Math.floor(col / 3) * 3;
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        if (grid[startRow + i][startCol + j] === value) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const solveGrid = () => {
+    if (!validateGrid()) {
+      return;
+    }
+    const solvedGrid = solveSudoku(grid);
+    if (solvedGrid) {
+      setGrid([...solvedGrid]);
+      Alert.alert('Success', 'Sudoku solved!');
+    } else {
+      setError('No solution found');
+      setVisible(true);
+    }
+  };
+
+  const solveSudoku = grid => {
+    const newGrid = grid.map(row => [...row]);
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 9; j++) {
+        if (newGrid[i][j] === '') {
+          for (let num = 1; num <= 9; num++) {
+            if (isValidValue(i, j, num.toString())) {
+              newGrid[i][j] = num.toString();
+              if (solveSudoku(newGrid)) {
+                return newGrid;
+              }
+              newGrid[i][j] = '';
+            }
+          }
+          return null;
+        }
+      }
+    }
+    return newGrid;
   };
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
+    <SafeAreaProvider>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Sudoku Solver</Text>
+        <Animated.View
+          entering={FadeIn}
+          exiting={FadeOut}
+          layout={Layout.springify()}>
+          <View style={styles.grid}>
+            {grid.map((row, i) => (
+              <View key={i} style={styles.row}>
+                {row.map((cell, j) => (
+                  <TextInput
+                    key={j}
+                    value={cell}
+                    style={[
+                      styles.cell,
+                      (i + 1) % 3 === 0 && i !== 8 && styles.bottomBorder,
+                      (j + 1) % 3 === 0 && j !== 8 && styles.rightBorder,
+                    ]}
+                    onChangeText={text => {
+                      const newGrid = [...grid];
+                      newGrid[i][j] = text.replace(/[^1-9]/g, '');
+                      setGrid(newGrid);
+                    }}
+                    maxLength={1}
+                    keyboardType="numeric"
+                    textAlign="center"
+                  />
+                ))}
+              </View>
+            ))}
+          </View>
+        </Animated.View>
+        <View style={styles.buttonsContainer}>
+          <Button mode="contained" style={styles.button} onPress={validateGrid}>
+            Validate
+          </Button>
+          <Button mode="contained" style={styles.button} onPress={solveGrid}>
+            Solve
+          </Button>
         </View>
+        <Snackbar
+          visible={visible}
+          onDismiss={() => setVisible(false)}
+          duration={Snackbar.DURATION_SHORT}
+          action={{
+            label: 'Close',
+            onPress: () => {
+              setVisible(false);
+            },
+          }}>
+          {error}
+        </Snackbar>
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaProvider>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f0f0f0',
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#333',
   },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
+  grid: {
+    borderWidth: 3,
+    borderColor: '#333',
+    backgroundColor: '#fff',
   },
-  highlight: {
-    fontWeight: '700',
+  row: {
+    flexDirection: 'row',
+  },
+  cell: {
+    borderWidth: 1,
+    borderColor: '#999',
+    width: 40,
+    height: 40,
+    fontSize: 20,
+    lineHeight: 40,
+    textAlign: 'center',
+    color: '#333',
+  },
+  bottomBorder: {
+    borderBottomWidth: 3,
+  },
+  rightBorder: {
+    borderRightWidth: 3,
+  },
+  buttonsContainer: {
+    flexDirection: 'row',
+    marginTop: 20,
+    justifyContent: 'space-between',
+    width: '60%',
+  },
+  button: {
+    marginHorizontal: 10,
   },
 });
 
-export default App;
+export default SudokuSolver;
